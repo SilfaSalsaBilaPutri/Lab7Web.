@@ -591,6 +591,7 @@ HASIL UOTPUT
 HASIL OUTPUT
 --- 
 
+![Screenshot (41)](https://github.com/user-attachments/assets/0551606d-e79d-42e1-a633-22b8cf85e03e)
 
 # PRAKTIKUM 6
 
