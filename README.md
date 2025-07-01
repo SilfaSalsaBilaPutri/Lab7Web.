@@ -426,3 +426,236 @@ Frame tambah artikel
   Memanggiil:
 
   ``` <?= view_cell('App\\Cells\\ArtikelTerkini::render', ['kategori' => 2]) ?> ```
+
+# PRAKTIKUM 4
+
+- Membuat Tabel User di Database
+
+  ```
+    CREATE TABLE user (
+    id INT(11) auto_increment,
+    username VARCHAR(200) NOT NULL,
+    useremail VARCHAR(200),
+    userpassword VARCHAR(200),
+    PRIMARY KEY(id)
+  );
+  ```
+  Kita butuh tabel user untuk menyimpan data pengguna, email, dan password. userpassword akan menyimpan password yang sudah di-hash agar tidak bisa dibaca langsung. useremail akan digunakan saat proses login.
+
+  - Membuat Model User
+ 
+    ```
+    class UserModel extends Model {
+      protected $table = 'user';
+      protected $primaryKey = 'id';
+      protected $useAutoIncrement = true;
+      protected $allowedFields = ['username', 'useremail', 'userpassword'];
+    }
+    ```
+
+    Model ini akan digunakan untuk mengakses dan memproses data pada tabel user. allowedFields menentukan kolom mana yang boleh diisi/diedit secara massal.
+
+- Membuat Seeder User
+
+  ```
+  namespace App\Database\Seeds;
+  use CodeIgniter\Database\Seeder;
+
+  class UserSeeder extends Seeder
+  {
+    public function run()
+    {
+      $model = model('UserModel');
+      $model->insert([
+        'username' => 'admin',
+        'useremail' => 'admin@email.com',
+        'userpassword' => password_hash('admin123', PASSWORD_DEFAULT),
+      ]);
+    }
+  }
+
+  ```
+
+  Seeder di atas dipakai untuk mengisi data awal ke database (contoh user admin). Passwordnya juga harus di-hash agar aman, bukan plaintext.
+
+- Membuat Auth Filter
+
+  ```
+  namespace App\Filters;
+  use CodeIgniter\HTTP\RequestInterface;
+  use CodeIgniter\HTTP\ResponseInterface;
+  use CodeIgniter\Filters\FilterInterface;
+
+  class Auth implements FilterInterface
+  {
+    public function before(RequestInterface $request, $arguments = null)
+    {
+       if (!session()->get('logged_in')) {
+        return redirect()->to('/user/login');
+      }
+    }
+
+    public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
+    {
+    }
+  }
+  ```
+
+  Filter ini digunakan untuk mencegah pengguna yang belum login mengakses halaman admin. Cek session logged_in. Kalau belum login, redirect ke /user/login. Mendaftarkan filter auth agar bisa digunakan di Routes.php nanti.
+
+- Proteksi Halaman Admin dengan Filter
+
+  ```
+    $routes->group('admin', ['filter' => 'auth'], function($routes) {
+    $routes->get('artikel', 'Artikel::admin_index');
+    ...
+  });
+  ```
+
+  Sekarang semua route di dalam grup admin/ akan dicek dulu apakah user sudah login. Jika belum → otomatis redirect ke login.
+
+HASIL UOTPUT
+---
+
+![Screenshot 2025-07-01 210041](https://github.com/user-attachments/assets/65de9d71-9a49-4104-8bc8-0488bf63030b)
+
+# PRAKTIKUM 5
+
+- Menambahkan Fitur Pagination ke Controller
+
+  Modifikasi Method admin_index() di File: app/Controllers/Artikel.php seperti ini:
+
+  ```
+  public function admin_index()
+  {
+      $title = 'Daftar Artikel';
+      $model = new ArtikelModel();
+      $data = [
+          'title' => $title,
+          'artikel' => $model->paginate(10), // Menampilkan 10 data per halaman
+          'pager' => $model->pager
+      ];
+      return view('artikel/admin_index', $data);
+  }
+  ```
+
+  Fungsi paginate(10) otomatis membagi data artikel menjadi 10 per halaman. $model->pager menyimpan objek pagination yang akan dikirim ke view.
+
+- Menampilkan Link Pagination di View
+
+  letakkan di file app/Views/artikel/admin_index.php, Tambahkan di bawah tabel artikel:
+
+  ``` <?= $pager->links(); ?> ```
+
+  Menampilkan tombol pagination secara otomatis (Next, Previous, halaman 1, 2, dst).
+
+- Menambahkan Fitur Pencarian
+
+  letakkan di file: app/Controllers/Artikel.php, jika sudah Modifikasi admin_index() untuk menambahkan filter pencarian:
+
+  ```
+  public function admin_index()
+  {
+      $title = 'Daftar Artikel';
+      $q = $this->request->getVar('q') ?? '';
+      $model = new ArtikelModel();
+      $data = [
+          'title' => $title,
+          'q' => $q,
+          'artikel' => $model->like('judul', $q)->paginate(10),
+          'pager' => $model->pager
+      ];
+      return view('artikel/admin_index', $data);
+  }
+  ```
+
+  getVar('q'): mengambil input pencarian dari URL (misalnya: ?q=berita). like('judul', $q): hanya menampilkan artikel yang judulnya mengandung kata kunci.
+
+- Menambahkan Form Pencarian di View
+
+  ```
+  <form method="get" class="form-search">
+      <input type="text" name="q" value="<?= $q; ?>" placeholder="Cari data">
+      <input type="submit" value="Cari" class="btn btn-primary">
+  </form>
+  ```
+
+  Form akan mengirimkan keyword pencarian ke controller melalui parameter q. Field value="<?= $q; ?>" mempertahankan isi form setelah pencarian.
+
+- Menyesuaikan Link Pagination dengan Query Pencarian
+
+  ``` <?= $pager->only(['q'])->links(); ?> ```
+
+  Supaya link pagination tetap menyertakan query pencarian (q) ketika user klik halaman berikutnya. Tanpa ini, saat klik halaman 2 pencarian bisa hilang.
+
+HASIL OUTPUT
+--- 
+
+
+# PRAKTIKUM 6
+
+-  Memodifikasi Controller untuk Menyimpan Gambar
+
+   Update method add() Artikel.php menjadi:
+
+   ```
+   public function add()
+   {
+       // validasi data
+       $validation = \Config\Services::validation();
+       $validation->setRules(['judul' => 'required']);
+       $isDataValid = $validation->withRequest($this->request)->run();
+
+       if ($isDataValid)
+       {
+           $file = $this->request->getFile('gambar');
+           $file->move(ROOTPATH . 'public/gambar'); // Pindahkan file ke folder public/gambar
+
+           $artikel = new ArtikelModel();
+          $artikel->insert([
+               'judul' => $this->request->getPost('judul'),
+               'isi' => $this->request->getPost('isi'),
+               'slug' => url_title($this->request->getPost('judul')),
+               'gambar' => $file->getName(), // Simpan nama file ke database
+           ]);
+
+           return redirect('admin/artikel');
+       }
+
+       $title = "Tambah Artikel";
+       return view('artikel/form_add', compact('title'));
+   }
+   ```
+
+   getFile('gambar') mengambil file yang dikirim dari form. move() memindahkan file ke folder /public/gambar. getName() digunakan untuk menyimpan nama file ke kolom gambar di tabel.
+
+- Memodifikasi Form Tambah Artikel
+
+  Ubah tag <form> agar bisa mengunggah file:
+
+  ``` <form action="" method="post" enctype="multipart/form-data"> ```
+
+  Tambahkan input untuk file gambar:
+
+  ```
+  <p>
+      <input type="file" name="gambar">
+  </p>
+  ```
+
+  enctype="multipart/form-data" wajib untuk upload file. <input type="file" name="gambar"> membuat field unggah file.
+
+- Menyimpan Gambar ke Folder public/gambar
+
+  Langkah yang terjadi saat submit: File dikirim dari browser, Disimpan otomatis ke folder public/gambar/ berkat fungsi move(), Nama file disimpan ke kolom gambar di database artikel.
+
+- Menampilkan Gambar di Daftar dan Detail Artikel
+
+  ``` <img src="<?= base_url('/gambar/' . $row['gambar']); ?>" alt="<?= $row['judul']; ?>"> ```
+
+  Gambar ditampilkan menggunakan path /gambar/nama_file, File sebelumnya sudah disimpan di folder public/gambar, jadi aman diakses lewat base_url().
+
+HASIL OUTPUT
+---
+
+![Screenshot (42)](https://github.com/user-attachments/assets/85f6fa11-f814-4e39-9f2a-d8bacf1f7ee7)
