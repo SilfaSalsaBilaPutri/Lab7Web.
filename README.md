@@ -660,3 +660,107 @@ HASIL OUTPUT
 ---
 
 ![Screenshot (42)](https://github.com/user-attachments/assets/85f6fa11-f814-4e39-9f2a-d8bacf1f7ee7)
+
+# PRAKTIKUM 7
+
+- Membuat Tabel kategori
+
+  ```
+    CREATE TABLE kategori (
+    id_kategori INT(11) AUTO_INCREMENT,
+    nama_kategori VARCHAR(100) NOT NULL,
+    slug_kategori VARCHAR(100),
+    PRIMARY KEY (id_kategori)
+  );
+  ```
+
+  Tabel ini menyimpan data kategori artikel seperti "Teknologi", "Pendidikan", dll. Field slug_kategori bisa digunakan untuk URL SEO-friendly.
+
+- Menambahkan Foreign Key di Tabel artikel
+
+  ```
+  ALTER TABLE artikel
+  ADD COLUMN id_kategori INT(11),
+  ADD CONSTRAINT fk_kategori_artikel
+  FOREIGN KEY (id_kategori) REFERENCES kategori(id_kategori);
+  ```
+
+  id_kategori menjadi penghubung antara artikel dan kategori. Foreign keynya menjaga konsistensi data antara kedua tabel.
+
+- Membuat Model KategoriModel.php
+
+  ```
+  <?php
+  namespace App\Models;
+  use CodeIgniter\Model;
+  class KategoriModel extends Model
+  {
+  protected $table = 'kategori';
+  protected $primaryKey = 'id_kategori';
+  protected $useAutoIncrement = true;
+  protected $allowedFields = [nama_kategori', 'slug_kategori'];
+  }
+  ```
+
+  Model ini digunakan untuk mengambil data kategori dari database.
+
+- Modifikasi ArtikelModel.php – Menambahkan Relasi Join
+
+  Tambahkan method:
+
+  ```
+    public function getArtikelDenganKategori()
+  {
+    return $this->db->table('artikel')
+        ->select('artikel.*, kategori.nama_kategori')
+        ->join('kategori', 'kategori.id_kategori = artikel.id_kategori')
+        ->get()
+        ->getResultArray();
+  }
+  ```
+
+  Menggabungkan tabel artikel dan kategori agar bisa menampilkan nama kategori langsung di artikel.
+
+- Modifikasi Controller Artikel.php
+
+  Menampilkan Artikel dengan Kategori di index():
+
+  ``` $artikel = $model->getArtikelDenganKategori(); ```
+
+  Menambahkan Fitur Filter di admin_index():
+  - Menambahkan filter berdasarkan kategori dan kata kunci.
+  - Mengambil daftar kategori dari model untuk ditampilkan di dropdown.
+
+- Modifikasi View
+
+  A. index.php (user)
+  
+  ``` <p>Kategori: <?= $row['nama_kategori']; ?></p> ```
+
+  Menampilkan kategori di daftar artikel pengguna.
+
+  B. admin_index.php
+
+  ```
+  <select name="kategori_id">
+    <option value="">Semua Kategori</option>
+    <?php foreach ($kategori as $k): ?>
+      <option value="<?= $k['id_kategori']; ?>"><?= $k['nama_kategori']; ?</option>
+    <?php endforeach; ?>
+  </select>
+  ```
+
+  Tambahkan form pencarian dan filter kategori, Tujuannya untuk menyaring artikel berdasarkan kategori.
+
+- form_add.php dan form_edit.php
+
+  Tambahkan dropdown pemilihan kategori saat menambah/edit artikel:
+
+  ```
+  <select name="id_kategori" required>
+    <?php foreach($kategori as $k): ?>
+      <option value="<?= $k['id_kategori']; ?>"><?= $k['nama_kategori']; ?></option>
+    <?php endforeach; ?>
+  </select>
+  ```
+  
